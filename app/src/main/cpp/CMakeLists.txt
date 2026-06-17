@@ -28,7 +28,6 @@ set(LUAJIT_CORE_SOURCES
     ${LUAJIT_SRC_DIR}/lj_ir.c
     ${LUAJIT_SRC_DIR}/lj_opt_mem.c
     ${LUAJIT_SRC_DIR}/lj_opt_fold.c
-    ${LUAJIT_SRC_DIR}/lj_opt_cse.c
     ${LUAJIT_SRC_DIR}/lj_opt_dce.c
     ${LUAJIT_SRC_DIR}/lj_opt_loop.c
     ${LUAJIT_SRC_DIR}/lj_opt_split.c
