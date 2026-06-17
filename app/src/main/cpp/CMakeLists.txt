@@ -1,6 +1,3 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html
-
 # Set the minimum required version of CMake
 cmake_minimum_required(VERSION 3.22.1)
 
@@ -19,7 +16,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raymob)
 set(LUAJIT_DIR ${CMAKE_SOURCE_DIR}/deps/luajit)
 set(LUAJIT_SRC_DIR ${LUAJIT_DIR}/src)
 
-# LuaJIT core source files
+# LuaJIT core source files (Mantendo a estrutura precisa do Raymob + Assembly)
 set(LUAJIT_CORE_SOURCES
     ${LUAJIT_SRC_DIR}/lj_gc.c
     ${LUAJIT_SRC_DIR}/lj_err.c
@@ -103,10 +100,24 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
     target_compile_definitions(${APP_LIB_NAME} PRIVATE _DEBUG DEBUG)
 endif()
 
-# Include raylib, raymob and LuaJIT header files
+# ------------------------------------------------------------------------
+# INTEGRAÇÃO: Mapeamento de diretórios gerados pelo Gradle e dependências
+# ------------------------------------------------------------------------
 target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/deps/raylib")
 target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/deps/raymob")
 target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/deps/luajit/src")
+target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/generated_libs")
+target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/generated_game")
 
 # Link required libraries to the native application
-target_link_libraries(${APP_LIB_NAME} raylib raymoblib luajit)
+# Adicionado as dependências do sistema Android nativo (log, android, EGL, GLESv2, m)
+target_link_libraries(${APP_LIB_NAME} 
+    raylib 
+    raymoblib 
+    luajit
+    android
+    log
+    EGL
+    GLESv2
+    m
+)

@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/deps/lua-libs/utils.lua",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 1567,
+          "line": 39
+        },
+        "start": {
+          "column": 0,
+          "index": 1567,
+          "line": 39
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/deps/lua-libs/utils.lua"
+}

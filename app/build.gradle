@@ -66,7 +66,7 @@ android {
             'REQUIRE_ACCELEROMETER': project.properties['requirements.accelerometer'] ?: "false"
         ]
 
-        // Give to CMake the name of the library
+        // Configuration defaults for CMake
         externalNativeBuild {
             cmake {
                 def nativeLibName = project.findProperty('app.native_library_name') ?: 'raymob'
@@ -133,16 +133,33 @@ android {
         debug {
             debuggable true
             jniDebuggable true
+            
+            // Força o app de debug a adicionar o sufixo no ID para não sobrepor o original no celular
+            applicationIdSuffix ".debug"
+
+            // Passa a macro MODO_ASSETS para o código nativo (C) via CMake
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DMODO_ASSETS=1"
+                }
+            }
         }
         release {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled false // Ajustado para false para prevenir ofuscação agressiva nas chamadas nativas do Raymob
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
             debuggable false
             jniDebuggable false
             pseudoLocalesEnabled false
             zipAlignEnabled true
+
+            // Passa a macro MODO_EMBUTIDO para o código nativo (C) via CMake
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DMODO_EMBUTIDO=1"
+                }
+            }
         }
     }
     compileOptions {
@@ -161,15 +178,74 @@ android {
     }
 }
 
-/*
+// ------------------------------------------------------------------------
+// TAREFAS DE AUTOMAÇÃO DE CONVERSÃO LUA -> CABEÇALHOS C (.h)
+// ------------------------------------------------------------------------
 
-// Add your project's dependencies here.
-// This section is used to include external libraries or modules that your project relies on.
-// These dependencies will be automatically downloaded and integrated into the build process.
-// To add a new dependency, use the 'implementation' or 'api' keyword followed by the library's coordinate or name.
+// TAREFA 1: Converte os arquivos da pasta 'lua-libs' (Roda em Debug e Release)
+task compileLuaLibs {
+    doLast {
+        def libsDir = file("src/main/cpp/deps/lua-libs")
+        def outputDir = file("src/main/cpp/generated_libs")
+        
+        if (!outputDir.exists()) outputDir.mkdirs()
 
-dependencies {
-
+        if (libsDir.exists()) {
+            libsDir.eachFile { file ->
+                if (file.name.endsWith(".lua")) {
+                    def hexString = file.bytes.collect { String.format("0x%02x", it) }.join(", ")
+                    def varName = "lib_" + file.name.replace(".lua", "").replace("-", "_")
+                    def headerFile = new File(outputDir, "${file.name}.h")
+                    
+                    headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
+#ifndef ${varName.toUpperCase()}_H
+#define ${varName.toUpperCase()}_H
+static const unsigned char ${varName}[] = { ${hexString}, 0x00 };
+static const unsigned int ${varName}_len = ${file.bytes.length};
+#endif
+"""
+                }
+            }
+        }
+    }
 }
 
-*/
+// TAREFA 2: Converte os arquivos do Jogo presentes na pasta Assets (Apenas em Release)
+task embedGameAssets {
+    doLast {
+        def assetsDir = file("src/main/assets")
+        def outputDir = file("src/main/cpp/generated_game")
+        
+        if (!outputDir.exists()) outputDir.mkdirs()
+
+        if (assetsDir.exists()) {
+            assetsDir.eachFileRecurse { file ->
+                if (file.name.endsWith(".lua")) {
+                    def hexString = file.bytes.collect { String.format("0x%02x", it) }.join(", ")
+                    def varName = "game_" + file.name.replace(".lua", "").replace("-", "_")
+                    def headerFile = new File(outputDir, "${file.name}.h")
+                    
+                    headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
+#ifndef ${varName.toUpperCase()}_H
+#define ${varName.toUpperCase()}_H
+static const unsigned char ${varName}[] = { ${hexString}, 0x00 };
+static const unsigned int ${varName}_len = ${file.bytes.length};
+#endif
+"""
+                }
+            }
+        }
+    }
+}
+
+// Vincula a execução automática das tarefas antes do NDK invocar o CMake
+project.afterEvaluate {
+    tasks.all { task ->
+        if (task.name.startsWith("externalNativeBuild")) {
+            task.dependsOn compileLuaLibs
+            if (task.name.toLowerCase().contains("release")) {
+                task.dependsOn embedGameAssets
+            }
+        }
+    }
+}
