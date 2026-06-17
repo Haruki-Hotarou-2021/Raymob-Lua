@@ -16,52 +16,21 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raymob)
 set(LUAJIT_DIR ${CMAKE_SOURCE_DIR}/deps/luajit)
 set(LUAJIT_SRC_DIR ${LUAJIT_DIR}/src)
 
-# LuaJIT core source files (Mantendo a estrutura precisa do Raymob + Assembly)
-set(LUAJIT_CORE_SOURCES
-    ${LUAJIT_SRC_DIR}/lj_gc.c
-    ${LUAJIT_SRC_DIR}/lj_err.c
-    ${LUAJIT_SRC_DIR}/lj_lex.c
-    ${LUAJIT_SRC_DIR}/lj_parse.c
-    ${LUAJIT_SRC_DIR}/lj_bcread.c
-    ${LUAJIT_SRC_DIR}/lj_bcwrite.c
-    ${LUAJIT_SRC_DIR}/lj_load.c
-    ${LUAJIT_SRC_DIR}/lj_ir.c
-    ${LUAJIT_SRC_DIR}/lj_opt_mem.c
-    ${LUAJIT_SRC_DIR}/lj_opt_fold.c
-    ${LUAJIT_SRC_DIR}/lj_opt_dce.c
-    ${LUAJIT_SRC_DIR}/lj_opt_loop.c
-    ${LUAJIT_SRC_DIR}/lj_opt_split.c
-    ${LUAJIT_SRC_DIR}/lj_opt_sink.c
-    ${LUAJIT_SRC_DIR}/lj_mcode.c
-    ${LUAJIT_SRC_DIR}/lj_snap.c
-    ${LUAJIT_SRC_DIR}/lj_record.c
-    ${LUAJIT_SRC_DIR}/lj_crecord.c
-    ${LUAJIT_SRC_DIR}/lj_ffrecord.c
-    ${LUAJIT_SRC_DIR}/lj_asm.c
-    ${LUAJIT_SRC_DIR}/lj_trace.c
-    ${LUAJIT_SRC_DIR}/lj_gdebug.c
-    ${LUAJIT_SRC_DIR}/lj_capi.c
-    ${LUAJIT_SRC_DIR}/lj_ccallback.c
-    ${LUAJIT_SRC_DIR}/lj_ccall.c
-    ${LUAJIT_SRC_DIR}/lj_carith.c
-    ${LUAJIT_SRC_DIR}/lj_clib.c
-    ${LUAJIT_SRC_DIR}/lj_cparse.c
-    ${LUAJIT_SRC_DIR}/lj_lib.c
-    ${LUAJIT_SRC_DIR}/lj_alloc.c
-    ${LUAJIT_SRC_DIR}/lib_aux.c
-    ${LUAJIT_SRC_DIR}/lib_base.c
-    ${LUAJIT_SRC_DIR}/lib_math.c
-    ${LUAJIT_SRC_DIR}/lib_bit.c
-    ${LUAJIT_SRC_DIR}/lib_string.c
-    ${LUAJIT_SRC_DIR}/lib_table.c
-    ${LUAJIT_SRC_DIR}/lib_io.c
-    ${LUAJIT_SRC_DIR}/lib_os.c
-    ${LUAJIT_SRC_DIR}/lib_package.c
-    ${LUAJIT_SRC_DIR}/lib_debug.c
-    ${LUAJIT_SRC_DIR}/lib_jit.c
-    ${LUAJIT_SRC_DIR}/lib_ffi.c
-    ${LUAJIT_SRC_DIR}/lj_vm.S
+# ====================================================================
+# CORREÇÃO: Coleta dinâmica automática e segura dos fontes do LuaJIT
+# ====================================================================
+# Coleta todos os arquivos do núcleo do interpretador e bibliotecas padrão
+file(GLOB LUAJIT_CORE_SOURCES
+    "${LUAJIT_SRC_DIR}/lj_*.c"
+    "${LUAJIT_SRC_DIR}/lib_*.c"
 )
+
+# Remove arquivos geradores de host de desktop que quebram a compilação cruzada do Android
+list(FILTER LUAJIT_CORE_SOURCES EXCLUDE REGEX "lj_vmfit.c|lj_ccallback.c")
+
+# Adiciona explicitamente o motor de assembly core
+list(APPEND LUAJIT_CORE_SOURCES "${LUAJIT_SRC_DIR}/lj_vm.S")
+# ====================================================================
 
 # Create LuaJIT static library
 add_library(luajit STATIC ${LUAJIT_CORE_SOURCES})
@@ -109,7 +78,6 @@ target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/generate
 target_include_directories(${APP_LIB_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/generated_game")
 
 # Link required libraries to the native application
-# Adicionado as dependências do sistema Android nativo (log, android, EGL, GLESv2, m)
 target_link_libraries(${APP_LIB_NAME} 
     raylib 
     raymoblib 
