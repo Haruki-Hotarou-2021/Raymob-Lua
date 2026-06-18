@@ -12,16 +12,16 @@ project("${APP_LIB_NAME}")
 # ==============================================================================
 add_library(luajit SHARED IMPORTED)
 set_target_properties(luajit PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/deps/LuaJIT/android/${ANDROID_ABI}/libluajit.so"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/deps/LuaJIT/src"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/deps/LuaJIT/android/${ANDROID_ABI}/libluajit.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/deps/LuaJIT/src"
 )
 
 # ==============================================================================
 # 2. SUBDIRETÓRIOS (RAYLIB E RAYMOB)
 # ==============================================================================
 set(PLATFORM "Android" CACHE STRING "Platform to build for")
-add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raylib)
-add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raymob)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raymob)
 
 # ==============================================================================
 # 3. AUTOMAÇÃO: EMBUTIR ARQUIVOS LUA NO BINÁRIO
@@ -29,19 +29,19 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/deps/raymob)
 function(embed_lua_file LUA_FILE OUTPUT_H_FILE VARIABLE_NAME)
     add_custom_command(
         OUTPUT ${OUTPUT_H_FILE}
-        COMMAND ${CMAKE_COMMAND} -DFILE_IN=${LUA_FILE} -DFILE_OUT=${OUTPUT_H_FILE} -DVAR_NAME=${VARIABLE_NAME} -P ${CMAKE_SOURCE_DIR}/InlineLua.cmake
+        COMMAND ${CMAKE_COMMAND} -DFILE_IN=${LUA_FILE} -DFILE_OUT=${OUTPUT_H_FILE} -DVAR_NAME=${VARIABLE_NAME} -P ${CMAKE_CURRENT_SOURCE_DIR}/InlineLua.cmake
         DEPENDS ${LUA_FILE}
         COMMENT "Embutindo script Lua: ${LUA_FILE}"
     )
 endfunction()
 
-set(GENERATED_LUA_DIR "${CMAKE_BINARY_DIR}/generated_lua")
+set(GENERATED_LUA_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated_lua")
 file(MAKE_DIRECTORY ${GENERATED_LUA_DIR})
 
 set(LUA_GENERATED_HEADERS "")
 
-# Coleta e processa os arquivos internos do JIT da arquitetura correspondente
-file(GLOB_RECURSE JIT_SCRIPTS "${CMAKE_SOURCE_DIR}/deps/LuaJIT/android/${ANDROID_ABI}/jit/*.lua")
+# Processa os scripts core do JIT para a arquitetura alvo
+file(GLOB_RECURSE JIT_SCRIPTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/LuaJIT/android/${ANDROID_ABI}/jit/*.lua")
 foreach(SCRIPT ${JIT_SCRIPTS})
     get_filename_component(NAME_WE ${SCRIPT} NAME_WE)
     set(OUTPUT_H "${GENERATED_LUA_DIR}/jit_${NAME_WE}.h")
@@ -49,8 +49,8 @@ foreach(SCRIPT ${JIT_SCRIPTS})
     list(APPEND LUA_GENERATED_HEADERS ${OUTPUT_H})
 endforeach()
 
-# Coleta e processa os arquivos de lua-libs
-file(GLOB_RECURSE LUA_LIBS_SCRIPTS "${CMAKE_SOURCE_DIR}/deps/lua-libs/*.lua")
+# Processa os arquivos de lua-libs
+file(GLOB_RECURSE LUA_LIBS_SCRIPTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/lua-libs/*.lua")
 foreach(SCRIPT ${LUA_LIBS_SCRIPTS})
     get_filename_component(NAME_WE ${SCRIPT} NAME_WE)
     set(OUTPUT_H "${GENERATED_LUA_DIR}/lib_${NAME_WE}.h")
@@ -59,13 +59,13 @@ foreach(SCRIPT ${LUA_LIBS_SCRIPTS})
 endforeach()
 
 # ==============================================================================
-# 4. COLETA DE FONTES DO SEU PROJETO
+# 4. COLETA DE FONTES DO SEU PROJETO (C/C++)
 # ==============================================================================
-file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/*.c" "${CMAKE_SOURCE_DIR}/*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX "${CMAKE_SOURCE_DIR}/deps/.*")
+file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+list(FILTER SOURCES EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/deps/.*")
 
-include_directories(${ANDROID_NDK}/sources/android/native_app_glue/)
-list(APPEND SOURCES ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
+# Vincula o código-fonte C do native_app_glue fornecido pelo NDK do Android
+list(APPEND SOURCES "${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
 
 # ==============================================================================
 # 5. CRIAÇÃO DO BINÁRIO ÚNICO (libgame.so)
@@ -77,13 +77,16 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
     target_compile_definitions(${APP_LIB_NAME} PRIVATE _DEBUG DEBUG)
 endif()
 
+# CORREÇÃO CRÍTICA: target_include_directories garante que as pastas do NDK e dependências
+# fiquem totalmente visíveis para o compilador no escopo da sua biblioteca final.
 target_include_directories(${APP_LIB_NAME} PRIVATE 
-    "${CMAKE_SOURCE_DIR}"
-    "${CMAKE_SOURCE_DIR}/deps/raylib/src"
-    "${CMAKE_SOURCE_DIR}/deps/raymob"
-    "${CMAKE_SOURCE_DIR}/deps/LuaJIT/src"
-    "${CMAKE_SOURCE_DIR}/deps/lua-libs"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/raymob"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/LuaJIT/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/lua-libs"
     "${GENERATED_LUA_DIR}"
+    "${ANDROID_NDK}/sources/android/native_app_glue" # Inclusão correta e robusta do NDK
 )
 
 target_link_libraries(${APP_LIB_NAME} 
