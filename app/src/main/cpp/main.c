@@ -1,4 +1,4 @@
-#include <android/native_app_glue.h>
+#include <raymob.h>
 #include <android/log.h>
 #include <stdlib.h>
 
@@ -6,8 +6,6 @@
 #include <lualib.h>
 #include <lauxlib.h>
 #include <luajit.h>
-
-#include <raylib.h>
 
 // Declaração do entrypoint do Raymob para registrar as funções no Lua
 // Ajuste o nome da função se ela for nomeada diferentemente no código do Raymob
