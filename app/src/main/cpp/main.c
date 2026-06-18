@@ -5,11 +5,11 @@
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
-#include <luajit.h>
+#include "luajit.h"
 
 // Declaração do entrypoint do Raymob para registrar as funções no Lua
 // Ajuste o nome da função se ela for nomeada diferentemente no código do Raymob
-extern int luaopen_raymob(lua_State* L);
+// extern int luaopen_raymob(lua_State* L); // Essa função parece não existir em meus arquivos
 
 // Inclusão dos headers Lua autogerados pelo pipeline do CMake
 #include "lib_libs.h"  // Gerado a partir de lua-libs/libs.lua -> mapeia para lua_lib_libs
