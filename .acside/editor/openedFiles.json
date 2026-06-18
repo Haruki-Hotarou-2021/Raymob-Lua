@@ -1,20 +1,20 @@
 {
   "allFiles": [
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/InlineLua.cmake",
+      "file": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/deps/lua-libs/raylib-ffi.lua",
       "selection": {
         "end": {
           "column": 0,
-          "index": 651,
-          "line": 12
+          "index": 0,
+          "line": 0
         },
         "start": {
           "column": 0,
-          "index": 651,
-          "line": 12
+          "index": 0,
+          "line": 0
         }
       }
     }
   ],
-  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/InlineLua.cmake"
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/deps/lua-libs/raylib-ffi.lua"
 }
