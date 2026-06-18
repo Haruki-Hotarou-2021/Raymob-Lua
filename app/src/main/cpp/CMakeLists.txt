@@ -64,8 +64,8 @@ endforeach()
 file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/deps/.*")
 
-# Vincula o código-fonte C do native_app_glue fornecido pelo NDK do Android
-list(APPEND SOURCES "${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
+# ALTERAÇÃO: Mudança de ANDROID_NDK para CMAKE_ANDROID_NDK para compatibilidade com CI/CD
+list(APPEND SOURCES "${CMAKE_ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
 
 # ==============================================================================
 # 5. CRIAÇÃO DO BINÁRIO ÚNICO (libgame.so)
@@ -77,8 +77,6 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
     target_compile_definitions(${APP_LIB_NAME} PRIVATE _DEBUG DEBUG)
 endif()
 
-# CORREÇÃO CRÍTICA: target_include_directories garante que as pastas do NDK e dependências
-# fiquem totalmente visíveis para o compilador no escopo da sua biblioteca final.
 target_include_directories(${APP_LIB_NAME} PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib/src"
@@ -86,7 +84,8 @@ target_include_directories(${APP_LIB_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/LuaJIT/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/deps/lua-libs"
     "${GENERATED_LUA_DIR}"
-    "${ANDROID_NDK}/sources/android/native_app_glue" # Inclusão correta e robusta do NDK
+    # ALTERAÇÃO: Mudança de ANDROID_NDK para CMAKE_ANDROID_NDK aqui também
+    "${CMAKE_ANDROID_NDK}/sources/android/native_app_glue" 
 )
 
 target_link_libraries(${APP_LIB_NAME} 
