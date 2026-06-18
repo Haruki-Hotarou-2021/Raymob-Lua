@@ -1,87 +1,218 @@
-#include <raymob.h>
-#include <android/log.h>
-#include <stdlib.h>
+/*******************************************************************************************
+*
+*   Raymob + LuaJIT + lua-libs + Jogo Embutido
+*
+*   Carrega lua-libs (bytecode embutido) + jogo (bytecode embutido OU assets)
+*
+********************************************************************************************/
 
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
+#include "raymob.h"
 #include "luajit.h"
+#include "lua.h"
+#include "lauxlib.h"
 
-// Declaração do entrypoint do Raymob para registrar as funções no Lua
-// Ajuste o nome da função se ela for nomeada diferentemente no código do Raymob
-// extern int luaopen_raymob(lua_State* L); // Essa função parece não existir em meus arquivos
+// ===========================================================================
+// IMPORTAR CABEÇALHOS
+// ===========================================================================
+#include "lua-libs.h"         // ← lua-libs (utils.lua, game.lua, scene.lua)
 
-// Inclusão dos headers Lua autogerados pelo pipeline do CMake
-#include "lib_libs.h"  // Gerado a partir de lua-libs/libs.lua -> mapeia para lua_lib_libs
+// ===========================================================================
+// ADICIONAR: Só incluir game-embedded.h quando EMBED_GAME=1
+// ===========================================================================
+#ifdef EMBED_GAME
+#include "game-embedded.h"    // ← jogo embutido (só existe em Release)
+#endif
 
-// Módulos Core do JIT gerados automaticamente
-#include "jit_bc.h"
-#include "jit_bcsave.h"
-#include "jit_dis_arm64.h" // Modifique ou adicione dependendo de quais gerou, ex: dis_arm, dis_x86
-#include "jit_dump.h"
-#include "jit_p.h"
-#include "jit_v.h"
-#include "jit_vmdef.h"
+#include <android/log.h>
 
-// Função utilitária para injetar os binários embutidos diretamente no 'package.preload' do Lua
-// Isso faz com que chamadas de 'require "modulo"' busquem direto na memória do binário
-void preload_lua_module(lua_State* L, const char* name, const unsigned char* buffer, unsigned int size) {
-    lua_getglobal(L, "package");
-    lua_getfield(L, -1, "preload");
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "Raymob", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "Raymob", __VA_ARGS__)
+
+// ===========================================================================
+// ESTADO LUA
+// ===========================================================================
+static lua_State *L = NULL;
+
+// ===========================================================================
+// CARREGAR LUA-LIBS (usar variáveis do cabeçalho lua-libs.h)
+// ===========================================================================
+
+static void load_lua_libs(lua_State *L) {
+    LOGD("Carregando lua-libs...");
     
-    if (luaL_loadbuffer(L, (const char*)buffer, size, name) == 0) {
-        lua_setfield(L, -2, name);
-    } else {
-        TraceLog(LOG_ERROR, "Falha ao pré-carregar módulo embutido: %s", name);
+    // utils.lua (variável: lib_utils)
+    #ifdef lib_utils
+    if (luaL_loadbuffer(L, lib_utils, lib_utils_len, "utils") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ utils.loaded");
+        } else {
+            LOGE("✗ utils error: %s", lua_tostring(L, -1));
+        }
     }
+    #endif
     
-    lua_pop(L, 2); // Limpa a pilha (preload e package)
+    // game.lua (variável: lib_game)
+    #ifdef lib_game
+    if (luaL_loadbuffer(L, lib_game, lib_game_len, "game") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ game.loaded");
+        } else {
+            LOGE("✗ game error: %s", lua_tostring(L, -1));
+        }
+    }
+    #endif
+    
+    // scene.lua (variável: lib_scene)
+    #ifdef lib_scene
+    if (luaL_loadbuffer(L, lib_scene, lib_scene_len, "scene") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ scene.loaded");
+        } else {
+            LOGE("✗ scene error: %s", lua_tostring(L, -1));
+        }
+    }
+    #endif
 }
 
-// Ponto de entrada nativo do Android (Gerenciado pelo native_app_glue)
-void android_main(struct android_app* app) {
-    // Registra a infraestrutura básica de ciclo de vida do Android exigida pela Raylib
-    SetCallbackStructure(app);
+// ===========================================================================
+// CARREGAR JOGO (EMBED_GAME=1 → bytecode embutido, EMBED_GAME=0 → assets)
+// ===========================================================================
 
-    // Inicializa o Estado do LuaJIT
-    lua_State* L = luaL_newstate();
+static void load_game(lua_State *L) {
+    #ifdef EMBED_GAME
+    LOGD("Carregando jogo EMBUTIDO (bytecode)...");
+    
+    // assets/jogo/main.lua (variável: assets_jogo_main)
+    #ifdef assets_jogo_main
+    if (luaL_loadbuffer(L, assets_jogo_main, assets_jogo_main_len, "main") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ main.loaded (embedded)");
+        } else {
+            LOGE("✗ main error: %s", lua_tostring(L, -1));
+        }
+    }
+    #endif
+    
+    // assets/jogo/level.lua (variável: assets_jogo_level)
+    #ifdef assets_jogo_level
+    if (luaL_loadbuffer(L, assets_jogo_level, assets_jogo_level_len, "level") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ level.loaded (embedded)");
+        } else {
+            LOGE("✗ level error: %s", lua_tostring(L, -1));
+        }
+    }
+    #endif
+    
+    // assets/jogo/enemy.lua (variável: assets_jogo_enemy)
+    #ifdef assets_jogo_enemy
+    if (luaL_loadbuffer(L, assets_jogo_enemy, assets_jogo_enemy_len, "enemy") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ enemy.loaded (embedded)");
+        } else {
+            LOGE("✗ enemy error: %s", lua_tostring(L, -1));
+        }
+    }
+    #endif
+    
+    #else
+    LOGD("Carregando jogo dos ASSETS...");
+    
+    // assets/jogo/main.lua (assets)
+    if (luaL_loadfile(L, "assets/jogo/main.lua") == 0) {
+        if (lua_pcall(L, 0, 0, 0) == 0) {
+            LOGD("✓ main.loaded (assets)");
+        } else {
+            LOGE("✗ main error: %s", lua_tostring(L, -1));
+        }
+    } else {
+        LOGE("✗ assets/jogo/main.lua não encontrado!");
+    }
+    #endif
+}
+
+// ===========================================================================
+// CALLBACKS DO RAYMOB (Init, Update, Render, Shutdown)
+// ===========================================================================
+
+void GameInit(void) {
+    LOGD("=== Game Init ===");
+    
+    // Criar estado Lua
+    L = luaL_newstate();
     if (!L) {
-        TraceLog(LOG_ERROR, "Não foi possível inicializar o motor LuaJIT.");
+        LOGE("✗ Failed to create Lua state!");
         return;
     }
-
-    // Carrega as bibliotecas nativas e padrão do Lua
-    luaL_openlibs(L);
-
-    // Registra o Raymob nativamente no ecossistema Lua
-    // Permite que seus scripts usem require("raymob") ou tenham acesso às globais da engine
-    lua_getglobal(L, "package");
-    lua_getfield(L, -1, "loaded");
-    luaopen_raymob(L);
-    lua_setfield(L, -2, "raymob");
-    lua_pop(L, 2);
-
-    // Mapeia os módulos internos do JIT para que o compilador funcione perfeitamente
-    preload_lua_module(L, "jit.bc", lua_jit_bc, lua_jit_bc_len);
-    preload_lua_module(L, "jit.bcsave", lua_jit_bcsave, lua_jit_bcsave_len);
-    preload_lua_module(L, "jit.dump", lua_jit_dump, lua_jit_dump_len);
-    preload_lua_module(L, "jit.p", lua_jit_p, lua_jit_p_len);
-    preload_lua_module(L, "jit.v", lua_jit_v, lua_jit_v_len);
-    preload_lua_module(L, "jit.vmdef", lua_jit_vmdef, lua_jit_vmdef_len);
-
-    // Pré-carrega o seu ponto de entrada "libs"
-    preload_lua_module(L, "libs", lua_lib_libs, lua_lib_libs_len);
-
-    // Executa o ponto de entrada principal (libs.lua)
-    // O seu libs.lua cuidará de gerenciar o loop ou chamar sub-módulos via FFI
-    lua_getglobal(L, "require");
-    lua_pushstring(L, "libs");
     
-    if (lua_pcall(L, 1, 0, 0) != 0) {
-        TraceLog(LOG_ERROR, "ERRO LUA: %s", lua_tostring(L, -1));
-        lua_pop(L, 1);
-    }
+    // Open Lua libs
+    luaopen_base(L);
+    luaopen_package(L);
+    luaopen_io(L);
+    luaopen_os(L);
+    luaopen_string(L);
+    luaopen_math(L);
+    luaopen_table(L);
+    
+    // Load lua-libs
+    load_lua_libs(L);
+    
+    // Load game
+    load_game(L);
+    
+    // Init Raylib
+    LOGD("InitWindow...");
+    InitWindow(0, 0, "Raymob Game");
+    SetTargetFPS(60);
+}
 
-    // Fecha o estado de execução do Lua e limpa a memória ao encerrar o app
-    lua_close(L);
+void GameUpdate(void) {
+    if (!L) return;
+    
+    LOGD("Game Update");
+    
+    // Call update() from game (se existe)
+    lua_getglobal(L, "update");
+    if (lua_isfunction(L, -1)) {
+        lua_pcall(L, 0, 0, 0);
+    }
+}
+
+void GameRender(void) {
+    if (!L) return;
+    
+    LOGD("Game Render");
+    
+    // Call render() from game (se existe)
+    lua_getglobal(L, "render");
+    if (lua_isfunction(L, -1)) {
+        lua_pcall(L, 0, 0, 0);
+    }
+    
+    // Draw FPS
+    DrawFPS(10, 10);
+}
+
+void GameShutdown(void) {
+    LOGD("=== Game Shutdown ===");
+    
+    if (L) {
+        lua_close(L);
+        L = NULL;
+    }
+    
+    CloseWindow();
+}
+
+// ===========================================================================
+// NATIVE ACTIVITY CALLBACKS (Raymob)
+// ===========================================================================
+
+void ANativeActivity_onCreate(ANativeActivity *activity, void *args, size_t len) {
+    LOGD("ANativeActivity_onCreate");
+    
+    activity->callbacks->OnInit = GameInit;
+    activity->callbacks->OnUpdate = GameUpdate;
+    activity->callbacks->OnRender = GameRender;
+    activity->callbacks->OnShutdown = GameShutdown;
 }

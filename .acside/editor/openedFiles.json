@@ -1,20 +1,20 @@
 {
   "allFiles": [
     {
-      "file": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/main.c",
+      "file": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/assets/main.lua",
       "selection": {
         "end": {
-          "column": 22,
-          "index": 767,
-          "line": 23
+          "column": 0,
+          "index": 0,
+          "line": 0
         },
         "start": {
-          "column": 22,
-          "index": 767,
-          "line": 23
+          "column": 0,
+          "index": 0,
+          "line": 0
         }
       }
     }
   ],
-  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/cpp/main.c"
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/Raymob-Lua/app/src/main/assets/main.lua"
 }

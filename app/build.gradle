@@ -53,8 +53,12 @@ android {
         buildConfigField("boolean", "FEATURE_DISPLAY_KEEP_ON", project.properties['display.keep_on'] ?: "false")
         buildConfigField("boolean", "FEATURE_DISPLAY_IMMERSIVE", project.properties['display.immersive'] ?: "false")
         buildConfigField("boolean", "FEATURE_DISPLAY_INTO_CUTOUT", project.properties['display.into_cutout'] ?: "false")
+        
+        // ===========================================================================
+        // ADICIONAR: buildConfig para EMBED_GAME
+        // ===========================================================================
+        buildConfigField("boolean", "EMBED_GAME", project.properties['embedGame'] ?: "false")
 
-        // Substitution variables for the manifest
         manifestPlaceholders = [
             'GL_VERSION_CODE': getGLVersionCode(project.properties['gl.version']) ?: "0x00020000",
             'APP_LIB_NAME': project.properties['app.native_library_name'] ?: "raymob",
@@ -66,7 +70,6 @@ android {
             'REQUIRE_ACCELEROMETER': project.properties['requirements.accelerometer'] ?: "false"
         ]
 
-        // Configuration defaults for CMake
         externalNativeBuild {
             cmake {
                 def nativeLibName = project.findProperty('app.native_library_name') ?: 'raymob'
@@ -75,26 +78,45 @@ android {
                 arguments "-DPLATFORM=Android",
                           "-DBUILD_EXAMPLES=OFF",
                           "-DAPP_LIB_NAME=$nativeLibName",
-                          "-DGL_VERSION=$glVersion"
+                          "-DGL_VERSION=$glVersion",
+                          // ===========================================================================
+                          // ADICIONAR: Passar EMBED_GAME para CMake
+                          // ===========================================================================
+                          "-DEMBED_GAME=${project.hasProperty('embedGame') && project.embedGame == 'true' ? 'ON' : 'OFF'}"
             }
         }
 
         applicationVariants.all { variant ->
-            // Change output names to the correct ones
             variant.outputs.all {
                 outputFileName = outputFileName.replace("com.raylib.raymob", project.properties['app.application_id'])
                 outputFileName = outputFileName.replace("raymob", project.properties['app.native_library_name'])
             }
         }
-
     }
 
-    // Execute the preBuild task before the compilation
-    preBuild.doLast {
+    // ===========================================================================
+    // ADICIONAR: SPLITS POR ABI (APKs MULTI-ABI)
+    // ===========================================================================
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk true  // ← Gerar APK universal também
+        }
+    }
 
+    // ===========================================================================
+    // ADICIONAR: NDK ABI Filters
+    // ===========================================================================
+    ndk {
+        abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+    }
+
+    preBuild.doLast {
         // Modify the package name and library name in NativeLoader.java
         updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "package com.raylib.raymob;", "package " + project.properties['app.application_id'] + ";")
-        updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "System.loadLibrary\\(\"raymob\"\\);", "System.loadLibrary\\(\"" + project.properties['app.native_library_name'] + "\"\\);")
+        updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "System.loadLibrary\\("raymob"\\);", "System.loadLibrary\\("" + project.properties['app.native_library_name'] + ""\\);")
 
         // Modify the package name and library name in other java classes
         updateFile("src/main/java/com/raylib/raymob/DisplayManager.java", "package com.raylib.raymob;", "package " + project.properties['app.application_id'] + ";")
@@ -106,15 +128,12 @@ android {
         // Modify the library name in raymob C source
         updateFile("src/main/cpp/deps/raymob/display.c", "com/raylib/raymob", project.properties['app.application_id'].replace(".", "/"))
         updateFile("src/main/cpp/deps/raymob/soft_keyboard.c", "com/raylib/raymob", project.properties['app.application_id'].replace(".", "/"))
-
     }
 
-    // Execute the postBuild task after the compilation
     gradle.buildFinished {
-
         // Restore the package name and library name in NativeLoader.java
         updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "package " + project.properties['app.application_id'] + ";", "package com.raylib.raymob;")
-        updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "System.loadLibrary\\(\"" + project.properties['app.native_library_name'] + "\"\\);", "System.loadLibrary\\(\"raymob\"\\);")
+        updateFile("src/main/java/com/raylib/raymob/NativeLoader.java", "System.loadLibrary\\("" + project.properties['app.native_library_name'] + ""\\);", "System.loadLibrary\\("raymob"\\);")
 
         // Restore the package name and library name in other java classes
         updateFile("src/main/java/com/raylib/raymob/DisplayManager.java", "package " + project.properties['app.application_id'] + ";", "package com.raylib.raymob;")
@@ -126,26 +145,26 @@ android {
         // Restore the library name in raymob C source
         updateFile("src/main/cpp/deps/raymob/display.c", project.properties['app.application_id'].replace(".", "/"), "com/raylib/raymob")
         updateFile("src/main/cpp/deps/raymob/soft_keyboard.c", project.properties['app.application_id'].replace(".", "/"), "com/raylib/raymob")
-
     }
 
     buildTypes {
         debug {
             debuggable true
             jniDebuggable true
-            
-            // Força o app de debug a adicionar o sufixo no ID para não sobrepor o original no celular
             applicationIdSuffix ".debug"
-
-            // Passa a macro MODO_ASSETS para o código nativo (C) via CMake
+            
             externalNativeBuild {
                 cmake {
                     cppFlags "-DMODO_ASSETS=1"
+                    // ===========================================================================
+                    // ADICIONAR: EMBED_GAME=OFF para debug
+                    // ===========================================================================
+                    arguments "-DEMBED_GAME=OFF"
                 }
             }
         }
         release {
-            minifyEnabled false // Ajustado para false para prevenir ofuscação agressiva nas chamadas nativas do Raymob
+            minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
@@ -153,28 +172,38 @@ android {
             jniDebuggable false
             pseudoLocalesEnabled false
             zipAlignEnabled true
-
-            // Passa a macro MODO_EMBUTIDO para o código nativo (C) via CMake
+            
             externalNativeBuild {
                 cmake {
                     cppFlags "-DMODO_EMBUTIDO=1"
+                    // ===========================================================================
+                    // ADICIONAR: EMBED_GAME=ON para release (se embedGame=true)
+                    // ===========================================================================
+                    arguments "-DEMBED_GAME=${project.hasProperty('embedGame') && project.embedGame == 'true' ? 'ON' : 'OFF'}"
                 }
             }
         }
     }
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
     externalNativeBuild {
         cmake {
             path file('src/main/cpp/CMakeLists.txt')
             version '3.25.0+'
         }
     }
+    
+    // ===========================================================================
+    // ADICIONAR: buildFeatures ndk true
+    // ===========================================================================
     buildFeatures {
         buildConfig true
         viewBinding true
+        ndk true  // ← OBRIGATÓRIO PARA SPLITS ABI
     }
 }
 
@@ -182,7 +211,9 @@ android {
 // TAREFAS DE AUTOMAÇÃO DE CONVERSÃO LUA -> CABEÇALHOS C (.h)
 // ------------------------------------------------------------------------
 
-// TAREFA 1: Converte os arquivos da pasta 'lua-libs' (Roda em Debug e Release)
+// ===========================================================================
+// TAREFA 1: Converte todos arquivos lua-libs em UM único cabeçalho (lua-libs.h)
+// ===========================================================================
 task compileLuaLibs {
     doLast {
         def libsDir = file("src/main/cpp/deps/lua-libs")
@@ -190,27 +221,49 @@ task compileLuaLibs {
         
         if (!outputDir.exists()) outputDir.mkdirs()
 
+        def headerFile = new File(outputDir, "lua-libs.h")
+        
+        // Cabeçalho do arquivo
+        headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
+#ifndef LUA_LIBS_H
+#define LUA_LIBS_H
+
+#include <stddef.h>
+
+// ===========================================================================
+// LUA-LIBS EMBUTIDAS (gerado automaticamente)
+// ===========================================================================
+"""
+        
+        // processar todos .lua
         if (libsDir.exists()) {
             libsDir.eachFile { file ->
                 if (file.name.endsWith(".lua")) {
                     def hexString = file.bytes.collect { String.format("0x%02x", it) }.join(", ")
                     def varName = "lib_" + file.name.replace(".lua", "").replace("-", "_")
-                    def headerFile = new File(outputDir, "${file.name}.h")
                     
-                    headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
-#ifndef ${varName.toUpperCase()}_H
-#define ${varName.toUpperCase()}_H
+                    // Adicionar extern declarations
+                    headerFile.append("""
+// ${file.name}
 static const unsigned char ${varName}[] = { ${hexString}, 0x00 };
 static const unsigned int ${varName}_len = ${file.bytes.length};
-#endif
-"""
+""")
                 }
             }
         }
+        
+        // Fonte do arquivo
+        headerFile.append("""
+#endif // LUA_LIBS_H
+""")
+        
+        println "✓ Gerado: lua-libs.h (${libsDir.listFiles().length} arquivos)"
     }
 }
 
-// TAREFA 2: Converte os arquivos do Jogo presentes na pasta Assets (Apenas em Release)
+// ===========================================================================
+// TAREFA 2: Converte todos arquivos do JOGO em UM único cabeçalho (game-embedded.h)
+// ===========================================================================
 task embedGameAssets {
     doLast {
         def assetsDir = file("src/main/assets")
@@ -218,23 +271,67 @@ task embedGameAssets {
         
         if (!outputDir.exists()) outputDir.mkdirs()
 
+        def headerFile = new File(outputDir, "game-embedded.h")
+        
+        // Cabeçalho do arquivo
+        headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
+#ifndef GAME_EMBEDDED_H
+#define GAME_EMBEDDED_H
+
+#include <stddef.h>
+
+// ===========================================================================
+// JOGO EMBUTIDO (gerado automaticamente)
+// ===========================================================================
+"""
+        
+        // processar todos arquivos recursivamente
         if (assetsDir.exists()) {
             assetsDir.eachFileRecurse { file ->
                 if (file.name.endsWith(".lua")) {
-                    def hexString = file.bytes.collect { String.format("0x%02x", it) }.join(", ")
-                    def varName = "game_" + file.name.replace(".lua", "").replace("-", "_")
-                    def headerFile = new File(outputDir, "${file.name}.h")
+                    // Criar variável nome baseada no path relativo
+                    def relPath = file.getAbsolutePath().replace(assetsDir.getAbsolutePath() + "/", "")
+                    def varName = "assets_" + relPath.replace("/", "_").replace(".lua", "").replace("-", "_")
                     
-                    headerFile.text = """// Gerado automaticamente pelo Gradle - Nao editar
-#ifndef ${varName.toUpperCase()}_H
-#define ${varName.toUpperCase()}_H
+                    def hexString = file.bytes.collect { String.format("0x%02x", it) }.join(", ")
+                    
+                    headerFile.append("""
+// ${relPath}
 static const unsigned char ${varName}[] = { ${hexString}, 0x00 };
 static const unsigned int ${varName}_len = ${file.bytes.length};
-#endif
-"""
+""")
                 }
             }
         }
+        
+        headerFile.append("""
+#endif // GAME_EMBEDDED_H
+""")
+        
+        println "✓ Gerado: game-embedded.h"
+    }
+}
+
+// ===========================================================================
+// TAREFA 3: Move assets/jogo/ → deps/game/ (só Release)
+// ===========================================================================
+task moveGameAssetsToDeps {
+    doLast {
+        def assetsJogoDir = file("src/main/assets/jogo")
+        def depsGameDir = file("src/main/cpp/deps/game")
+        
+        if (!assetsJogoDir.exists()) {
+            throw new GradleException("Pasta assets/jogo/ não encontrada!")
+        }
+        
+        if (depsGameDir.exists()) {
+            depsGameDir.deleteDir()
+        }
+        
+        depsGameDir.mkdirs()
+        assetsJogoDir.copyTo(depsGameDir)
+        
+        println "✓ Move assets/jogo/ → deps/game/"
     }
 }
 
@@ -245,7 +342,51 @@ project.afterEvaluate {
             task.dependsOn compileLuaLibs
             if (task.name.toLowerCase().contains("release")) {
                 task.dependsOn embedGameAssets
+                task.dependsOn moveGameAssetsToDeps
             }
         }
     }
 }
+
+// ===========================================================================
+// ADICIONAR: Mapear ABI para CMake (ANDROID_ABI)
+// ===========================================================================
+applicationVariants.all { variant ->
+    variant.outputs.each { output ->
+        def abi = output.getFilter(com.android.build.api.ApkVariantOutput.ABI)
+        
+        if (abi != null) {
+            def cmakeAbiArg = ''
+            switch (abi) {
+                case 'arm64-v8a':
+                    cmakeAbiArg = '-DANDROID_ABI=arm64-v8a'
+                    break
+                case 'armeabi-v7a':
+                    cmakeAbiArg = '-DANDROID_ABI=armeabi-v7a'
+                    break
+                case 'x86':
+                    cmakeAbiArg = '-DANDROID_ABI=x86'
+                    break
+                case 'x86_64':
+                    cmakeAbiArg = '-DANDROID_ABI=x86_64'
+                    break
+            }
+            
+            if (!output.configurationArguments.contains(cmakeAbiArg)) {
+                output.configurationArguments += cmakeAbiArg
+            }
+        }
+    }
+}
+
+// Executar moveGameAssetsToDeps antes de assembleRelease
+assembleRelease.dependsOn moveGameAssetsToDeps
+
+/*
+
+// Add your project's dependencies here.
+dependencies {
+
+}
+
+*/
