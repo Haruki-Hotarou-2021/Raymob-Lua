@@ -2,7 +2,3 @@
 	path = app/src/main/cpp/deps/raylib
 	url = https://github.com/raysan5/raylib.git
 	branch = master
-
-[submodule "app/src/main/cpp/deps/luajit"]
-	path = app/src/main/cpp/deps/luajit
-	url = https://github.com/LuaJIT/LuaJIT.git
